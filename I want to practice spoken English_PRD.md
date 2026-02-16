@@ -32,7 +32,7 @@
 
 ### 2.1 用户操作流程
 
-1. 上传 / 编辑 `I want to practice spoken English.txt`
+1. 上传 / 编辑 `practice.txt`
     
 2. 配置或选择 LLM（提供商 / endpoint / model）
     

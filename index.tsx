@@ -40,8 +40,11 @@ function App() {
       parseAndSetSentences(storedText, false);
     } else {
       // Try to fetch file, fallback to default
-      fetch("/I want to practice spoken English.txt")
-        .then(res => res.text())
+      fetch("/practice.txt")
+        .then(res => {
+          if (!res.ok) throw new Error("File not found");
+          return res.text();
+        })
         .then(text => parseAndSetSentences(text, false))
         .catch(() => parseAndSetSentences(DEFAULT_TEXT, false));
     }
