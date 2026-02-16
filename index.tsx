@@ -28,30 +28,34 @@ function App() {
     const activeConfig = configs.find(c => c.id === currentId) || configs[0];
     setConfig(activeConfig);
 
-    // Load sentences from localStorage or fetch
+    // Load sentences from content file
     const storedText = localStorage.getItem("practice_text");
+    const isCustom = localStorage.getItem("practice_is_custom") === "true";
     const storedIndex = localStorage.getItem("practice_index");
 
     if (storedIndex) {
       setCurrentIndex(parseInt(storedIndex, 10));
     }
 
-    if (storedText) {
-      parseAndSetSentences(storedText, false);
-    } else {
-      // Try to fetch file, fallback to default
-      fetch("/practice.txt")
-        .then(res => {
-          if (!res.ok) throw new Error("File not found");
-          return res.text();
-        })
-        .then(text => parseAndSetSentences(text, false))
-        .catch(() => parseAndSetSentences(DEFAULT_TEXT, false));
-    }
-    setLoading(false);
+    // Always fetch latest practice.txt to check for updates
+    fetch("/practice.txt")
+      .then(res => res.ok ? res.text() : Promise.reject())
+      .then(remoteText => {
+        // If not custom, or if local is empty/default, use remote
+        if (!isCustom || !storedText || storedText === DEFAULT_TEXT) {
+          parseAndSetSentences(remoteText, false, false);
+        } else {
+          parseAndSetSentences(storedText, false, true);
+        }
+      })
+      .catch(() => {
+        // Fallback to local or default if fetch fails
+        parseAndSetSentences(storedText || DEFAULT_TEXT, false, isCustom);
+      })
+      .finally(() => setLoading(false));
   }, []);
 
-  const parseAndSetSentences = (text: string, resetIndex: boolean = true) => {
+  const parseAndSetSentences = (text: string, resetIndex: boolean = true, markAsCustom: boolean = false) => {
     const lines = text.split("\n").filter(l => l.trim().length > 0);
     const parsed: Sentence[] = lines.map((line, idx) => ({
       id: idx + 1,
@@ -61,6 +65,7 @@ function App() {
     setSentences(parsed);
     setEditText(text); // Sync editor
     localStorage.setItem("practice_text", text);
+    localStorage.setItem("practice_is_custom", markAsCustom ? "true" : "false");
     if (resetIndex) {
       setCurrentIndex(0);
       localStorage.setItem("practice_index", "0");
@@ -84,7 +89,7 @@ function App() {
 
   const handleSaveContent = () => {
     if (confirm("Saving will reset your progress. Continue?")) {
-      parseAndSetSentences(editText, true);
+      parseAndSetSentences(editText, true, true);
       setIsEditing(false);
     }
   };
