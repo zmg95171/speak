@@ -30,26 +30,35 @@ function App() {
 
   // Load Auth & Settings & Content
   useEffect(() => {
+    let mounted = true;
+
     // 1. Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
+      if (mounted) {
+        setSession(session);
+        if (!session) setLoading(false); // Stop loading if not logged in
+      }
     });
 
     // 2. Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
+      if (mounted) setSession(session);
     });
 
     const { configs, currentId } = loadSettings();
     const activeConfig = configs.find(c => c.id === currentId) || configs[0];
     setConfig(activeConfig);
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
-    if (!session) return; // Only load if logged in
+    if (!session) return;
 
+    setLoading(true);
     // Load sentences from content file
     const storedText = localStorage.getItem("practice_text");
     const isCustom = localStorage.getItem("practice_is_custom") === "true";
@@ -63,7 +72,6 @@ function App() {
     fetch("/practice.txt")
       .then(res => res.ok ? res.text() : Promise.reject())
       .then(remoteText => {
-        // If not custom, or if local is empty/default, use remote
         if (!isCustom || !storedText || storedText === DEFAULT_TEXT) {
           parseAndSetSentences(remoteText, false, false);
         } else {
@@ -71,11 +79,12 @@ function App() {
         }
       })
       .catch(() => {
-        // Fallback to local or default if fetch fails
         parseAndSetSentences(storedText || DEFAULT_TEXT, false, isCustom);
       })
-      .finally(() => setLoading(false));
-  }, []);
+      .finally(() => {
+        setLoading(false);
+      });
+  }, [session]);
 
   const parseAndSetSentences = (text: string, resetIndex: boolean = true, markAsCustom: boolean = false) => {
     const lines = text.split("\n").filter(l => l.trim().length > 0);
