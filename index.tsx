@@ -3,8 +3,12 @@ import React, { useState, useEffect } from "react";
 import { createRoot } from "react-dom/client";
 import { SettingsModal } from "./components/SettingsModal";
 import { PracticeScreen } from "./components/PracticeScreen";
+import { Auth } from "./components/Auth";
+import { AdminPanel } from "./components/AdminPanel";
 import { LLMConfig, Sentence } from "./lib/types";
 import { loadSettings, saveSettings } from "./lib/storage";
+import { supabase } from "./lib/supabase";
+import { Session } from "@supabase/supabase-js";
 
 // Default content for fallback
 const DEFAULT_TEXT = `I want to practice spoken English.
@@ -14,19 +18,37 @@ What do you recommend for dinner?
 It was nice meeting you, have a great day.`;
 
 function App() {
+  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [config, setConfig] = useState<LLMConfig | null>(null);
   const [sentences, setSentences] = useState<Sentence[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState("");
 
-  // Load Settings & Content
+  // Load Auth & Settings & Content
   useEffect(() => {
+    // 1. Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+    });
+
+    // 2. Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
     const { configs, currentId } = loadSettings();
     const activeConfig = configs.find(c => c.id === currentId) || configs[0];
     setConfig(activeConfig);
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!session) return; // Only load if logged in
 
     // Load sentences from content file
     const storedText = localStorage.getItem("practice_text");
@@ -111,15 +133,28 @@ function App() {
 
   if (loading || !config) return <div className="p-10 text-white">Loading...</div>;
 
+  if (!session) {
+    return (
+      <div className="h-screen w-screen bg-slate-950 flex flex-col items-center justify-center p-4">
+        <Auth />
+      </div>
+    );
+  }
+
   return (
     <div className="h-screen w-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
       {/* Top Bar (PRD Section 2) */}
       <header className="h-14 px-4 flex items-center justify-between border-b border-slate-800 bg-slate-900/50 backdrop-blur z-20">
         <div className="flex gap-4">
-          <button onClick={() => setIsSettingsOpen(true)} className="text-xl p-2 hover:bg-slate-800 rounded-lg">⚙️</button>
-          <button onClick={() => setIsEditing(true)} className="text-xl p-2 hover:bg-slate-800 rounded-lg">✏️</button>
+          <button onClick={() => setIsSettingsOpen(true)} className="text-xl p-2 hover:bg-slate-800 rounded-lg" title="Settings">⚙️</button>
+          <button onClick={() => setIsEditing(true)} className="text-xl p-2 hover:bg-slate-800 rounded-lg" title="Edit Content">✏️</button>
+          <button onClick={() => supabase.auth.signOut()} className="text-xl p-2 hover:bg-slate-800 rounded-lg" title="Logout">🚪</button>
         </div>
-        <div className="font-bold flex items-center gap-2">
+        <div
+          className="font-bold flex items-center gap-2 cursor-pointer select-none"
+          onDoubleClick={() => setIsAdminOpen(true)}
+          title="Magic Hall"
+        >
           <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
           Spoken Practice
         </div>
@@ -140,6 +175,9 @@ function App() {
           onComplete={() => alert("All Done!")}
         />
       </main>
+
+      {/* Admin Panel */}
+      {isAdminOpen && <AdminPanel onClose={() => setIsAdminOpen(false)} />}
 
       {/* Settings Modal */}
       <SettingsModal
