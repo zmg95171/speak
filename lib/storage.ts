@@ -20,7 +20,15 @@ export const saveSettings = (configs: LLMConfig[], currentId: string) => {
 export const loadSettings = (): { configs: LLMConfig[]; currentId: string } => {
     const data = localStorage.getItem(SETTINGS_KEY);
     if (data) {
-        return JSON.parse(data);
+        const settings = JSON.parse(data);
+        // Ensure that if the current config has an empty API key, we fallback to our build-time env variable
+        settings.configs = settings.configs.map((c: LLMConfig) => {
+            if (c.provider === "gemini" && !c.apiKey && DEFAULT_CONFIG.apiKey) {
+                return { ...c, apiKey: DEFAULT_CONFIG.apiKey };
+            }
+            return c;
+        });
+        return settings;
     }
     return { configs: [DEFAULT_CONFIG], currentId: DEFAULT_CONFIG.id };
 };
