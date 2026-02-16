@@ -22,3 +22,7 @@ View your app in AI Studio: https://ai.studio/apps/drive/1qPKj0vKkPIE8iClodQxCCJ
 ## visit our website
 
 If you don't want to deploy it yourself, please visit our website https://magic.2068.online/ to start your enjoyable learning.
+
+## Setting
+
+"Click the pencil" icon to set any content you want!
