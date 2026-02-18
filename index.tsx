@@ -27,6 +27,7 @@ function App() {
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState("");
+  const [isGuest, setIsGuest] = useState(false);
 
   // Load Auth & Settings & Content
   useEffect(() => {
@@ -56,7 +57,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (!session) return;
+    if (!session && !isGuest) return;
 
     setLoading(true);
     // Load sentences from content file
@@ -84,7 +85,7 @@ function App() {
       .finally(() => {
         setLoading(false);
       });
-  }, [session]);
+  }, [session, isGuest]);
 
   const parseAndSetSentences = (text: string, resetIndex: boolean = true, markAsCustom: boolean = false) => {
     const lines = text.split("\n").filter(l => l.trim().length > 0);
@@ -142,10 +143,10 @@ function App() {
 
   if (loading || !config) return <div className="p-10 text-white">Loading...</div>;
 
-  if (!session) {
+  if (!session && !isGuest) {
     return (
       <div className="h-screen w-screen bg-slate-950 flex flex-col items-center justify-center p-4">
-        <Auth />
+        <Auth onGuestLogin={() => setIsGuest(true)} />
       </div>
     );
   }
@@ -156,8 +157,31 @@ function App() {
       <header className="h-14 px-4 flex items-center justify-between border-b border-slate-800 bg-slate-900/50 backdrop-blur z-20">
         <div className="flex gap-4">
           <button onClick={() => setIsSettingsOpen(true)} className="text-xl p-2 hover:bg-slate-800 rounded-lg" title="Settings">⚙️</button>
-          <button onClick={() => setIsEditing(true)} className="text-xl p-2 hover:bg-slate-800 rounded-lg" title="Edit Content">✏️</button>
-          <button onClick={() => supabase.auth.signOut()} className="text-xl p-2 hover:bg-slate-800 rounded-lg" title="Logout">🚪</button>
+          <button
+            onClick={() => {
+              if (!session) {
+                if (confirm("Guest users cannot edit content. Would you like to register to save your own lessons?")) {
+                  setIsGuest(false);
+                }
+              } else {
+                setIsEditing(true);
+              }
+            }}
+            className="text-xl p-2 hover:bg-slate-800 rounded-lg"
+            title={session ? "Edit Content" : "Edit Content (Login Required)"}
+          >
+            ✏️
+          </button>
+          <button
+            onClick={() => {
+              supabase.auth.signOut();
+              setIsGuest(false);
+            }}
+            className="text-xl p-2 hover:bg-slate-800 rounded-lg"
+            title={session ? "Logout" : "Login"}
+          >
+            {session ? "🚪" : "👤"}
+          </button>
         </div>
         <div
           className="font-bold flex items-center gap-2 cursor-pointer select-none"
@@ -165,7 +189,7 @@ function App() {
           title="Magic Hall"
         >
           <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-          Spoken Practice
+          Spoken Practice {isGuest && <span className="text-xs bg-slate-700 px-2 py-0.5 rounded text-slate-300 ml-2">Guest</span>}
         </div>
         <a href="https://github.com/zmg95171/speak" target="_blank" className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition-colors" title="GitHub Help">
           <svg height="24" viewBox="0 0 16 16" version="1.1" width="24" aria-hidden="true" fill="currentColor">

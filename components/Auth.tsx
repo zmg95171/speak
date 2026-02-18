@@ -1,7 +1,11 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
 
-export const Auth: React.FC = () => {
+interface AuthProps {
+    onGuestLogin?: () => void;
+}
+
+export const Auth: React.FC<AuthProps> = ({ onGuestLogin }) => {
     const [loading, setLoading] = useState(false);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -74,13 +78,22 @@ export const Auth: React.FC = () => {
                 </button>
             </form>
 
-            <div className="mt-8 pt-6 border-t border-slate-800 w-full text-center">
+            <div className="mt-8 pt-6 border-t border-slate-800 w-full text-center space-y-4">
                 <button
                     onClick={() => setMode(mode === 'login' ? 'signup' : 'login')}
-                    className="text-slate-400 hover:text-blue-400 text-sm transition-colors"
+                    className="text-slate-400 hover:text-blue-400 text-sm transition-colors block w-full"
                 >
                     {mode === 'login' ? "还没有账号？前往入籍" : "已有契约？直接进入"}
                 </button>
+
+                {onGuestLogin && (
+                    <button
+                        onClick={onGuestLogin}
+                        className="text-slate-500 hover:text-white text-sm transition-colors block w-full border border-slate-800 rounded-lg py-2 hover:bg-slate-800"
+                    >
+                        暂不注册，以访客身份体验
+                    </button>
+                )}
             </div>
         </div>
     );

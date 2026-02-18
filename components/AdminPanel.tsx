@@ -28,23 +28,53 @@ export const AdminPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
     const fetchUsers = async () => {
         setLoading(true);
-        // Since we are using Supabase client, we might be restricted by RLS on auth.users if not using service role.
-        // For a simple frontend demo, we'll try to list users from a custom "profiles" table if it exists,
-        // or just show a message. In a real app, this would call a Supabase Edge Function or use the Admin API.
-
         try {
-            // Trying to list from the auth management API (requires service key, which we don't have on client)
-            // Instead, let's assume there's a profiles table or just mock the view for project structure.
-            const { data, error } = await supabase.from('profiles').select('*');
+            // Fetch from the profiles table
+            // Note: 'auth.users' fields like last_sign_in_at are generally not accessible via client SDK without Service Role.
+            // We use 'updated_at' from our profiles table as a proxy for "Last Activity".
+            // 'created_at' in profiles is set by our trigger.
+            const { data, error } = await supabase
+                .from('profiles')
+                .select('id, email, created_at, updated_at, subscription_status')
+                .order('created_at', { ascending: false });
+
             if (error) throw error;
-            setUsers(data || []);
+
+            // Map database fields to our UI interface
+            const realUsers: UserProfile[] = (data || []).map(p => ({
+                id: p.id,
+                email: p.email || 'Unknown Mage',
+                // Use updated_at as proxy for last sign in, or fallback to created_at
+                last_sign_in_at: p.updated_at || p.created_at || new Date().toISOString(),
+                created_at: p.created_at || new Date().toISOString(),
+            }));
+
+            setUsers(realUsers);
         } catch (err: any) {
-            console.warn("Could not fetch from profiles table. Mocking UI for now.", err.message);
-            // Fallback: mock data for UI demonstration
-            setUsers([
-                { id: '1', email: 'magic_apprentice_1@example.com', last_sign_in_at: new Date().toISOString(), created_at: '2026-01-01' },
-                { id: '2', email: 'voldemort@hogwarts.edu', last_sign_in_at: '2026-02-15T10:00:00Z', created_at: '2026-02-01' }
-            ]);
+            console.error("Failed to fetch from DB:", err.message);
+            // If the database is empty or RLS blocks access, we might want to show empty, 
+            // but for debugging purposes, let's show a clear MOCK indicator if in development,
+            // or just empty in production.
+            if (process.env.NODE_ENV === 'development') {
+                console.warn("Using mock data for users due to fetch error.");
+                const mockUsers: UserProfile[] = [
+                    {
+                        id: 'mock-1',
+                        email: 'mock.user1@example.com',
+                        last_sign_in_at: new Date(Date.now() - 3600 * 1000).toISOString(),
+                        created_at: new Date(Date.now() - 24 * 3600 * 1000 * 30).toISOString(),
+                    },
+                    {
+                        id: 'mock-2',
+                        email: 'mock.user2@example.com',
+                        last_sign_in_at: new Date(Date.now() - 3600 * 1000 * 24 * 7).toISOString(),
+                        created_at: new Date(Date.now() - 24 * 3600 * 1000 * 60).toISOString(),
+                    },
+                ];
+                setUsers(mockUsers);
+            } else {
+                setUsers([]);
+            }
         } finally {
             setLoading(false);
         }
