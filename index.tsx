@@ -8,6 +8,7 @@ import { AdminPanel } from "./components/AdminPanel";
 import { LLMConfig, Sentence } from "./lib/types";
 import { loadSettings, saveSettings } from "./lib/storage";
 import { supabase } from "./lib/supabase";
+import { UserContent, contentApi } from "./lib/content_api";
 import { Session } from "@supabase/supabase-js";
 
 // Default content for fallback
@@ -60,31 +61,59 @@ function App() {
     if (!session && !isGuest) return;
 
     setLoading(true);
-    // Load sentences from content file
-    const storedText = localStorage.getItem("practice_text");
-    const isCustom = localStorage.getItem("practice_is_custom") === "true";
-    const storedIndex = localStorage.getItem("practice_index");
 
-    if (storedIndex) {
-      setCurrentIndex(parseInt(storedIndex, 10));
-    }
+    const loadContent = async () => {
+      let contentLoaded = false;
 
-    // Always fetch latest practice.txt to check for updates
-    fetch("/practice.txt")
-      .then(res => res.ok ? res.text() : Promise.reject())
-      .then(remoteText => {
-        if (!isCustom || !storedText || storedText === DEFAULT_TEXT) {
-          parseAndSetSentences(remoteText, false, false);
-        } else {
-          parseAndSetSentences(storedText, false, true);
+      // Priority 1: If logged in, check DB for personal content
+      if (session) {
+        try {
+          const userContent = await contentApi.getUserContent();
+          if (userContent && userContent.content) {
+            parseAndSetSentences(userContent.content, false, true);
+            contentLoaded = true;
+          }
+        } catch (err) {
+          console.error("Failed to load user content", err);
         }
-      })
-      .catch(() => {
-        parseAndSetSentences(storedText || DEFAULT_TEXT, false, isCustom);
-      })
-      .finally(() => {
-        setLoading(false);
-      });
+      }
+
+      // Priority 2: Local storage (if consistent or Guest)
+      if (!contentLoaded) {
+        const storedText = localStorage.getItem("practice_text");
+        const isCustom = localStorage.getItem("practice_is_custom") === "true";
+
+        if (isCustom && storedText) {
+          parseAndSetSentences(storedText, false, true);
+          contentLoaded = true;
+        }
+      }
+
+      // Priority 3: Fetch default /practice.txt
+      if (!contentLoaded) {
+        try {
+          const res = await fetch("/practice.txt");
+          if (res.ok) {
+            const text = await res.text();
+            parseAndSetSentences(text, false, false);
+          } else {
+            parseAndSetSentences(DEFAULT_TEXT, false, false);
+          }
+        } catch {
+          parseAndSetSentences(DEFAULT_TEXT, false, false);
+        }
+      }
+
+      // Restore index
+      const storedIndex = localStorage.getItem("practice_index");
+      if (storedIndex) {
+        setCurrentIndex(parseInt(storedIndex, 10));
+      }
+
+      setLoading(false);
+    };
+
+    loadContent();
   }, [session, isGuest]);
 
   const parseAndSetSentences = (text: string, resetIndex: boolean = true, markAsCustom: boolean = false) => {
@@ -119,10 +148,32 @@ function App() {
     setConfig(newConfig);
   };
 
-  const handleSaveContent = () => {
+  const handleSaveContent = async () => {
     if (confirm("Saving will reset your progress. Continue?")) {
       parseAndSetSentences(editText, true, true);
       setIsEditing(false);
+
+      // If logged in, persist to DB
+      if (session) {
+        try {
+          await contentApi.saveUserContent(editText);
+        } catch (err) {
+          alert("Failed to save content to cloud: " + err);
+        }
+      }
+    }
+  };
+
+  const handleRestart = () => {
+    setCurrentIndex(0);
+    localStorage.setItem("practice_index", "0");
+  };
+
+  const handlePrevSentence = () => {
+    if (currentIndex > 0) {
+      const prevIndex = currentIndex - 1;
+      setCurrentIndex(prevIndex);
+      localStorage.setItem("practice_index", prevIndex.toString());
     }
   };
 
@@ -205,6 +256,8 @@ function App() {
           sentences={sentences}
           currentIndex={currentIndex}
           onSentencePass={handleSentencePass}
+          onRestart={handleRestart}
+          onPrevSentence={handlePrevSentence}
           onComplete={() => alert("All Done!")}
         />
       </main>

@@ -8,6 +8,8 @@ interface PracticeScreenProps {
     sentences: Sentence[];
     currentIndex: number;
     onSentencePass: (sentenceId: number) => void;
+    onRestart: () => void;
+    onPrevSentence: () => void;
     onComplete: () => void;
 }
 
@@ -18,6 +20,8 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({
     sentences,
     currentIndex,
     onSentencePass,
+    onRestart,
+    onPrevSentence,
     onComplete,
 }) => {
     const [step, setStep] = useState<Step>("idle");
@@ -91,6 +95,7 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({
             client.current = null;
         }
         setStep("idle");
+        onRestart(); // Call parent to reset index
     };
 
     const handleNextSentence = () => {
@@ -169,13 +174,21 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({
                                         onClick={handleStopSession}
                                         className="flex-1 py-3 bg-slate-800 rounded-full text-sm font-bold text-slate-400 hover:bg-slate-700 transition-colors"
                                     >
-                                        Restart Session
+                                        Restart
                                     </button>
+                                    {currentIndex > 0 && (
+                                        <button
+                                            onClick={onPrevSentence}
+                                            className="flex-1 py-3 bg-slate-800 rounded-full text-sm font-bold text-slate-400 hover:bg-slate-700 transition-colors"
+                                        >
+                                            ⬅ Prev
+                                        </button>
+                                    )}
                                     <button
                                         onClick={handleNextSentence}
                                         className="flex-1 py-3 bg-blue-600/80 rounded-full text-sm font-bold hover:bg-blue-600 transition-colors"
                                     >
-                                        Next Sentence ➡
+                                        Next ➡
                                     </button>
                                 </div>
                             </div>
